@@ -50,9 +50,9 @@ int main(int argc, char** argv) {
         #endif
     #endif
 
-    int port = 6666;
+    int port = 6660;
     int backlog = 10;
-    std::string host = "localhost:6666";
+    std::string host = "localhost:6660";
 
     out("---------------------------------------------------");
     out("- GETsrv | Because Even Useless Things Have Names -");
@@ -170,7 +170,7 @@ void handleRequest(int socketId) {
     recv(socketId, &buffer, bufferSize, 0);
     
     // TODO: Write buffer to request log
-    out(buffer);
+    // out(buffer);
 
     if(!isValidRequestType(buffer)) {
         out("HTTP method not supported.");
@@ -182,13 +182,30 @@ void handleRequest(int socketId) {
         exit(EXIT_FAILURE);
     }
 
-    const char* resource = getResource(buffer);
-    
+    const char* resource = getResourceFromRequest(buffer);
     if(strlen(resource) == 0) {
-        sendResource("index.htm");
+        resource = "index.htm";
     }
 
-    sendResource(resource);
+    Http_Response *response = (Http_Response*)malloc(sizeof(Http_Response));
+    if(findResourceOnDisk(resource)) {
+        loadResource(resource, response);
+        response200(response);
+    } else {
+        response404(response);
+    }
+
+    char space[4] = "\n\n";
+    char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(space) + 1]{};
+    strncpy(outputBuffer, response->headers, strlen(response->headers));
+    strncat(outputBuffer, space, strlen(space));
+    strncat(outputBuffer, response->body, strlen(response->body));
+
+    send(socketId, outputBuffer, strlen(outputBuffer), 0);
+
+    free(response->headers);
+    free(response->body);
+    free(response);
 }
 
 
@@ -261,7 +278,7 @@ Find_Result* getStringBetween(const char* buffer, const char start, const char e
 }
 
 
-const char* getResource(const char* buffer) {
+const char* getResourceFromRequest(const char* buffer) {
     Find_Result* find = getStringBetween(buffer, '/', ' ');
     if(!find->found) {
         out("Error getting resource name.");
@@ -276,6 +293,52 @@ const char* getResource(const char* buffer) {
 }
 
 
-void sendResource(const char* resource) {
-    out("Send resource");
+bool findResourceOnDisk(const char* resource) {
+    return false;
+}
+
+
+void loadResource(const char* resource, Http_Response* response) {
+
+}
+
+
+void response200(Http_Response* response) {
+    char contentLength[40]{};
+    snprintf(contentLength, 40, "Content-Length: %d", (int)strlen(response->body));
+
+    const char* headers = "\
+HTTP/1.1 200 OK\n\
+Content-Type: text/html\n";
+    size_t length = strlen(headers);
+    response->headers = (char*)malloc((length + 1) * sizeof(char));
+    strncpy(response->headers, headers, length);
+    response->headers[length] = '\0';
+}
+
+
+void response404(Http_Response* response) {
+    const char* headers = "\
+HTTP/1.1 404 Not Found\n\
+Content-Type: text/html";
+    size_t headerLength = strlen(headers);
+    response->headers = (char*)malloc((headerLength + 1) * sizeof(char));
+    strncpy(response->headers, headers, headerLength);
+    response->headers[headerLength] = '\0';
+
+    response->binary = 0;
+
+    const char* body = "\
+<!doctype html>\
+<html>\
+<head>\
+<title>Page Not Found</title>\
+</head>\
+<body>404 Page Not Found</body>\
+</html>";
+
+    size_t bodyLength = strlen(body);
+    response->body = (char*)malloc((bodyLength + 1) * sizeof(char));
+    strncpy(response->body, body, bodyLength);
+    response->body[bodyLength] = '\0';
 }
