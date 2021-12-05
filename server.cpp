@@ -177,6 +177,11 @@ void handleRequest(int socketId) {
         exit(EXIT_FAILURE);
     }
 
+    if(!isValidHttpVersion(buffer)) {
+        out("HTTP request type not supported.");
+        exit(EXIT_FAILURE);
+    }
+
     const char* resource = getResource(buffer);
     
     if(strlen(resource) == 0) {
@@ -198,6 +203,21 @@ bool isValidRequestType(const char* buffer) {
     strncpy(method, buffer, sizeof(method));
     method[len] = '\0';
     if(strcmp(method, "GET") == 0) {
+        return true;
+    }
+    return false;
+}
+
+
+bool isValidHttpVersion(const char* buffer) {
+    if(strlen(buffer) == 0) {
+        return false;
+    }
+
+    // Intentionally not caring about "HTTP/1.12" or similar because you can't send that via curl. I realize that this
+    // would still pass if such an HTTP version came through.
+    const char* find = strstr(buffer, "HTTP/1.1");
+    if(find != NULL) {
         return true;
     }
     return false;

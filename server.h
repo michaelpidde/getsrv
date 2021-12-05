@@ -14,6 +14,7 @@ int socketBind(addrinfo* hostList);
 void socketListen(int socketId, int backlog);
 void handleRequest(int socketId);
 bool isValidRequestType(const char* buffer);
+bool isValidHttpVersion(const char* buffer);
 const char* getResource(const char* buffer);
 void sendResource(const char* resource);
 Find_Result* negatindFindResult();

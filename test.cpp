@@ -43,12 +43,6 @@ inline void ASSERT_FALSE(bool exp, const char *msg)
  * TESTS
  * 
  ******************************************************************************/
-
-void test_isValidRequestType() {
-    std::string buffer = "GET / HTTP/1.1";
-    
-}
-
 void runTests() {
     printf(
         "\n"
@@ -57,11 +51,17 @@ void runTests() {
         "--------------------------------------------------------------------------------\n"
     );
 
+    TEST("isValidHttpVersion") {
+        ASSERT_TRUE(isValidHttpVersion("GET / HTTP/1.1"), "Valid HTTP version should pass");
+        ASSERT_FALSE(isValidHttpVersion("GET / HTTP/2.0"), "Invalid HTTP version should not pass");
+        ASSERT_FALSE(isValidHttpVersion(""), "Should not be valid if buffer is empty");
+    }
+
     TEST("isValidRequestType") {
         ASSERT_TRUE(isValidRequestType("GET / HTTP/1.1"), "Valid GET type should pass");
         ASSERT_FALSE(isValidRequestType(" GET / HTTP/1.1"), "Request should not be valid with leading space");
         ASSERT_FALSE(isValidRequestType("POST / HTTP/1.1"), "Request should not be valid unless type is GET");
-        ASSERT_FALSE(isValidRequestType(""), "Request should not be valid if empty");
+        ASSERT_FALSE(isValidRequestType(""), "Should not be valid if buffer is empty");
     }
 
     TEST("getStringBetween") {
