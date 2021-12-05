@@ -1,0 +1,49 @@
+body {
+    background-color: #555555;
+    font-family: sans-serif;
+    color: #333333;
+}
+article {
+    margin: 50px auto;
+    max-width: 1024px;
+    border: 10px solid #aaaaaa;
+    border-style: groove;
+    background-color: #ffffff;
+}
+article section {
+    padding: 20px;
+}
+article header {
+    font-size: 90%;
+    color: #aaaaaa;
+}
+article p {
+    line-height: 150%;
+}
+article a:link, a:hover, a:visited {
+    color: #0000a5;
+}
+article h1 {
+    font-size: 36px;
+}
+article h2 {
+    margin-top: 50px;
+    font-size: 26px;
+}
+article h3 {
+    margin-top: 20px;
+    font-size: 18px;
+}
+article sup {
+    font-size: 70%;
+}
+article li {
+    margin-bottom: 6px;
+    line-height: 150%;
+}
+article footer {
+    border-top: 4px solid #aaaaaa;
+}
+article footer li {
+    font-size: 14px;
+}

@@ -1,0 +1,1 @@
+g++ server.cpp -g -Werror -D INTERNAL -o server
