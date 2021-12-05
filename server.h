@@ -25,7 +25,6 @@ const char* getResourceFromRequest(const char* buffer);
 void sendResource(const char* resource);
 Find_Result* negatindFindResult();
 Find_Result* getStringBetween(const char* buffer, const char start, const char end);
-bool findResourceOnDisk(const char* resource);
-void loadResource(const char* resource, Http_Response* response);
+bool loadResource(const char* resource, Http_Response* response);
 void response200(Http_Response* response);
 void response404(Http_Response* response);

@@ -31,9 +31,10 @@
 #include <cstring>
 #include <iostream>
 #include <netdb.h>
-#include <unistd.h>
-#include <string>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string>
+#include <unistd.h>
 
 #include "server.h"
 
@@ -94,6 +95,7 @@ void getAddressInfo(int port, addrinfo** hostList) {
     int status = getaddrinfo(NULL, std::to_string(port).c_str(), &hints, hostList);
 
     if(status != 0) {
+        // TODO: Write to error log
         std::string error = gai_strerror(status);
         out("getaddrinfo error: " + error);
         exit(EXIT_FAILURE);
@@ -109,6 +111,7 @@ int socketBind(addrinfo* hostList) {
     for(addr = hostList; addr != NULL; addr = addr->ai_next) {
         socketId = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
         if(socketId == -1) {
+            // TODO: Write to error log
             out("Socket error: " + (std::string)std::strerror(errno));
             continue;
         }
@@ -120,6 +123,7 @@ int socketBind(addrinfo* hostList) {
     freeaddrinfo(hostList);
     
     if(addr == NULL) {
+        // TODO: Write to error log
         out("Error binding to socket: " + (std::string)strerror(errno));
         exit(EXIT_FAILURE);
     }
@@ -131,6 +135,7 @@ int socketBind(addrinfo* hostList) {
 void socketListen(int socketId, int backlog) {
     int status = listen(socketId, backlog);
     if(status == -1) {
+        // TODO: Write to error log
         out("Error listening to socket: " + (std::string)strerror(errno));
         exit(EXIT_FAILURE);
     }
@@ -140,6 +145,7 @@ void socketListen(int socketId, int backlog) {
         socklen_t addressSize = sizeof(address);
         int newSocketId = accept(socketId, (struct sockaddr *)&address, &addressSize);
         if(newSocketId == -1) {
+            // TODO: Write to error log
             out("Error listening to socket: " + (std::string)strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -150,6 +156,7 @@ void socketListen(int socketId, int backlog) {
         // process running indefinitely.
         pid_t pid = fork();
         if(pid == -1) {
+            // TODO: Write to error log
             out("Error forking child process: " + (std::string)strerror(errno));
             exit(EXIT_FAILURE);
         } else if(pid == 0) {
@@ -173,11 +180,13 @@ void handleRequest(int socketId) {
     // out(buffer);
 
     if(!isValidRequestType(buffer)) {
+        // TODO: Write to error log
         out("HTTP method not supported.");
         exit(EXIT_FAILURE);
     }
 
     if(!isValidHttpVersion(buffer)) {
+        // TODO: Write to error log
         out("HTTP request type not supported.");
         exit(EXIT_FAILURE);
     }
@@ -188,17 +197,16 @@ void handleRequest(int socketId) {
     }
 
     Http_Response *response = (Http_Response*)malloc(sizeof(Http_Response));
-    if(findResourceOnDisk(resource)) {
-        loadResource(resource, response);
+    if(loadResource(resource, response)) {
         response200(response);
     } else {
         response404(response);
     }
 
-    char space[4] = "\n\n";
-    char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(space) + 1]{};
+    char line[2] = "\n";
+    char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(line) + 1]{};
     strncpy(outputBuffer, response->headers, strlen(response->headers));
-    strncat(outputBuffer, space, strlen(space));
+    strncat(outputBuffer, line, strlen(line));
     strncat(outputBuffer, response->body, strlen(response->body));
 
     send(socketId, outputBuffer, strlen(outputBuffer), 0);
@@ -281,6 +289,7 @@ Find_Result* getStringBetween(const char* buffer, const char start, const char e
 const char* getResourceFromRequest(const char* buffer) {
     Find_Result* find = getStringBetween(buffer, '/', ' ');
     if(!find->found) {
+        // TODO: Write to error log
         out("Error getting resource name.");
         exit(EXIT_FAILURE);
     }
@@ -293,13 +302,28 @@ const char* getResourceFromRequest(const char* buffer) {
 }
 
 
-bool findResourceOnDisk(const char* resource) {
-    return false;
-}
-
-
-void loadResource(const char* resource, Http_Response* response) {
-
+bool loadResource(const char* resource, Http_Response* response) {
+    FILE *file;
+    char fullPath[1024] = "./content/";
+    strncat(fullPath, resource, 1024 - strlen(fullPath));
+    file = fopen(fullPath, "r");
+    if(file == NULL) {
+        // TODO: Write to error log
+        out("Error reading resource file: " + (std::string)strerror(errno));
+        return false;
+    }
+    fseek(file, 0, SEEK_END);
+    int fileLength = ftell(file);
+    response->body = (char*)malloc((fileLength + 1) * sizeof(char));
+    fseek(file, 0, SEEK_SET);
+    fread(response->body, fileLength, 1, file);
+    fclose(file);
+    if(response->body == NULL) {
+        // TODO: Write to error log
+        out("Error reading resource file: " + (std::string)strerror(errno));
+        return false;
+    }
+    return true;
 }
 
 
@@ -320,7 +344,7 @@ Content-Type: text/html\n";
 void response404(Http_Response* response) {
     const char* headers = "\
 HTTP/1.1 404 Not Found\n\
-Content-Type: text/html";
+Content-Type: text/html\n";
     size_t headerLength = strlen(headers);
     response->headers = (char*)malloc((headerLength + 1) * sizeof(char));
     strncpy(response->headers, headers, headerLength);
