@@ -328,30 +328,21 @@ bool loadResource(const char* resource, Http_Response* response) {
 
 
 void response200(Http_Response* response) {
-    char contentLength[40]{};
-    snprintf(contentLength, 40, "Content-Length: %d", (int)strlen(response->body));
+    char contentLengthHeader[40]{};
+    snprintf(contentLengthHeader, 40, "Content-Length: %d\n", (int)strlen(response->body));
 
     const char* headers = "\
 HTTP/1.1 200 OK\n\
 Content-Type: text/html\n";
-    size_t length = strlen(headers);
+    size_t length = strlen(headers) + strlen(contentLengthHeader);
     response->headers = (char*)malloc((length + 1) * sizeof(char));
     strncpy(response->headers, headers, length);
+    strncat(response->headers, contentLengthHeader, strlen(contentLengthHeader));
     response->headers[length] = '\0';
 }
 
 
 void response404(Http_Response* response) {
-    const char* headers = "\
-HTTP/1.1 404 Not Found\n\
-Content-Type: text/html\n";
-    size_t headerLength = strlen(headers);
-    response->headers = (char*)malloc((headerLength + 1) * sizeof(char));
-    strncpy(response->headers, headers, headerLength);
-    response->headers[headerLength] = '\0';
-
-    response->binary = 0;
-
     const char* body = "\
 <!doctype html>\
 <html>\
@@ -360,9 +351,22 @@ Content-Type: text/html\n";
 </head>\
 <body>404 Page Not Found</body>\
 </html>";
-
     size_t bodyLength = strlen(body);
     response->body = (char*)malloc((bodyLength + 1) * sizeof(char));
     strncpy(response->body, body, bodyLength);
     response->body[bodyLength] = '\0';
+
+    char contentLengthHeader[40]{};
+    snprintf(contentLengthHeader, 40, "Content-Length: %d\n", (int)strlen(response->body));
+
+    const char* headers = "\
+HTTP/1.1 404 Not Found\n\
+Content-Type: text/html\n";
+    size_t headerLength = strlen(headers) + strlen(contentLengthHeader);
+    response->headers = (char*)malloc((headerLength + 1) * sizeof(char));
+    strncpy(response->headers, headers, headerLength);
+    strncat(response->headers, contentLengthHeader, strlen(contentLengthHeader));
+    response->headers[headerLength] = '\0';
+
+    response->binary = 0;
 }
