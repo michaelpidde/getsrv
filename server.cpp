@@ -29,6 +29,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <ctype.h>
 #include <iostream>
 #include <netdb.h>
 #include <stdlib.h>
@@ -197,6 +198,10 @@ void handleRequest(int socketId) {
     }
 
     Http_Response *response = (Http_Response*)malloc(sizeof(Http_Response));
+
+    const char* extension = strrchr(resource, '.');
+    // setResponseContentType(extension, response);
+
     if(loadResource(resource, response)) {
         response200(response);
     } else {
@@ -214,6 +219,36 @@ void handleRequest(int socketId) {
     free(response->headers);
     free(response->body);
     free(response);
+}
+
+
+void setResponseContentType(const char* extension, Http_Response* response) {
+    const char* contentTypeHeader;
+    response->binary = false;
+
+    if(extension == NULL) {
+        contentTypeHeader = "Content-Type: text/html\n";
+    } else {
+        // We're removing the period from the start of the extension, but make the new array the same length so
+        // the null terminator can be put onto the end.
+        char extensionLower[strlen(extension)];
+        // Start at 1 so we can remove the period.
+        for(int i = 1; extension[i]; ++i) {
+            // Minus 1 to put the character at the right index in the new array.
+            extensionLower[i - 1] = tolower(extension[i]);
+        }
+        extensionLower[strlen(extension) - 1] = '\0';
+        out(extensionLower);
+        if(strcmp(extension, "png") == 0) {
+            response->binary = true;
+            contentTypeHeader = "Content-Type: image/png\n";
+        } else if(strcmp(extension, "jpg") == 0) {
+            response->binary = true;
+            contentTypeHeader = "Content-Type: image/jpg\n";
+        }
+    }
+
+
 }
 
 
