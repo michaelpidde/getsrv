@@ -284,7 +284,7 @@ bool isValidHttpVersion(const char* buffer) {
 }
 
 
-Find_Result* negatindFindResult() {
+Find_Result* negativeFindResult() {
     Find_Result* result = (Find_Result*)malloc(sizeof(Find_Result));
     result->found = 0;
     result->string = (char*)malloc(1 * sizeof(char));
@@ -295,17 +295,17 @@ Find_Result* negatindFindResult() {
 
 Find_Result* getStringBetween(const char* buffer, const char start, const char end) {
     if(strlen(buffer) < 2) {
-        return negatindFindResult();
+        return negativeFindResult();
     }
 
     const char* index1 = strchr(buffer, start);
     if(index1 == NULL) {
-        return negatindFindResult();
+        return negativeFindResult();
     }
     
     const char* index2 = strchr(index1, end);
     if(index2 == NULL) {
-        return negatindFindResult();
+        return negativeFindResult();
     }
 
     Find_Result* result = (Find_Result*)malloc(sizeof(Find_Result));
@@ -318,6 +318,28 @@ Find_Result* getStringBetween(const char* buffer, const char start, const char e
     strncpy(result->string, index1 + 1, sectionLength);
     result->string[sectionLength] = '\0';
     return result;
+}
+
+
+void dictionaryAdd(Dictionary* dict, const char* key, const char* value) {
+    dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * (dict->entries) + 1);
+    int next = dict->entries++;
+    Page page;
+    page.key = key;
+    page.value = value;
+    dict->pages[next] = page;
+}
+
+
+const char* dictionaryFind(Dictionary* dict, const char* key) {
+    if(dict->entries > 0) {
+        for(int i = 0; i < dict->entries; ++i) {
+            if(strncmp(dict->pages[i].key, key, strlen(key)) == 0) {
+                return dict->pages[i].value;
+            }
+        }
+    }
+    return NULL;
 }
 
 

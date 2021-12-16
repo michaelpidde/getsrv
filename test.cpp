@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "server.h"
 
 
@@ -88,6 +90,43 @@ void runTests() {
         Find_Result* find5 = getStringBetween("AZ", 'A', 'Z');
         ASSERT_TRUE(find5->found, "Result should be found");
         ASSERT_TRUE(strlen(find5->string) == 0, "Result string should be zero length");
+    }
+
+    TEST("dictionaryFind") {
+        Page page0;
+        page0.key = "key0";
+        page0.value = "value0";
+        Page page1;
+        page1.key = "key1";
+        page1.value = "value1";
+        Dictionary dict;
+        dict.pages = (Page*)malloc(sizeof(Page) * 2);
+        dict.pages[0] = page0;
+        dict.pages[1] = page1;
+        dict.entries = 2;
+
+        ASSERT_TRUE(dictionaryFind(&dict, "DoesNotExist") == NULL, "Find on key that does not exist should return NULL");
+        const char* find = dictionaryFind(&dict, "key1");
+        ASSERT_TRUE(find != NULL && strncmp(find, page1.value, strlen(page1.value)) == 0, "Find on existing key should return Page");
+
+        free(dict.pages);
+    }
+
+    TEST("dictionaryAdd") {
+        Dictionary dict = {};
+        const char* key0 = "key0";
+        const char* value0 = "value0";
+        dictionaryAdd(&dict, key0, value0);
+        ASSERT_TRUE(dict.entries == 1, "Dictionary should have 1 entry");
+        ASSERT_TRUE(strncmp(dict.pages[0].key, key0, strlen(key0)) == 0, "First key should be expected value");
+        ASSERT_TRUE(strncmp(dict.pages[0].value, value0, strlen(value0)) == 0, "First value should be expected value");
+
+        const char* key1 = "key1";
+        const char* value1 = "value1";
+        dictionaryAdd(&dict, key1, value1);
+        ASSERT_TRUE(dict.entries == 2, "Dictionary should have 2 entries");
+        ASSERT_TRUE(strncmp(dict.pages[1].key, key1, strlen(key1)) == 0, "Second key should be expected value");
+        ASSERT_TRUE(strncmp(dict.pages[1].value, value1, strlen(value1)) == 0, "Second value should be expected value");
     }
 
     printf(
