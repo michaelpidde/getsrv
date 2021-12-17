@@ -30,7 +30,7 @@
 #include <cerrno>
 #include <cstring>
 #include <ctype.h>
-#include <iostream>
+#include <stdio.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -53,7 +53,6 @@ int main(int argc, char** argv) {
 
     int port = 6660;
     int backlog = 10;
-    std::string host = "localhost:6660";
 
     out("---------------------------------------------------");
     out("- GETsrv | Because Even Useless Things Have Names -");
