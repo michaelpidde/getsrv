@@ -34,7 +34,6 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string>
 #include <unistd.h>
 
 #include "server.h"
@@ -59,7 +58,9 @@ int main(int argc, char** argv) {
     out("---------------------------------------------------");
     out("- GETsrv | Because Even Useless Things Have Names -");
     out("---------------------------------------------------\n");
-    out("Starting server at port " + std::to_string(port));
+    char* portString;
+    sprintf(portString, "Starting server at port %d", port);
+    out(portString);
 
     addrinfo *hostList;
     getAddressInfo(port, &hostList);
@@ -70,8 +71,16 @@ int main(int argc, char** argv) {
 }
 
 
-void out(std::string message) {
-    std::cout << message << std::endl;
+void out(const char* message) {
+    printf("%s\n", message);
+}
+
+
+void logStandardError(const char* message) {
+    // TODO: Write to error log
+    char* error;
+    sprintf(error, "%message: %s", strerror(errno));
+    out(error);
 }
 
 
@@ -93,12 +102,15 @@ void getAddressInfo(int port, addrinfo** hostList) {
     // This field specifies the preferred socket type
     hints.ai_socktype = SOCK_STREAM;
 
-    int status = getaddrinfo(NULL, std::to_string(port).c_str(), &hints, hostList);
+    char* portString;
+    sprintf(portString, "%d", port);
+    int status = getaddrinfo(NULL, portString, &hints, hostList);
 
     if(status != 0) {
         // TODO: Write to error log
-        std::string error = gai_strerror(status);
-        out("getaddrinfo error: " + error);
+        char* error;
+        sprintf(error, "getaddrinfo error: %s", gai_strerror(status));
+        out(error);
         exit(EXIT_FAILURE);
     }
 }
@@ -112,8 +124,7 @@ int socketBind(addrinfo* hostList) {
     for(addr = hostList; addr != NULL; addr = addr->ai_next) {
         socketId = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
         if(socketId == -1) {
-            // TODO: Write to error log
-            out("Socket error: " + (std::string)std::strerror(errno));
+            logStandardError("Socket error");
             continue;
         }
         if(bind(socketId, addr->ai_addr, addr->ai_addrlen) == 0) {
@@ -124,8 +135,7 @@ int socketBind(addrinfo* hostList) {
     freeaddrinfo(hostList);
     
     if(addr == NULL) {
-        // TODO: Write to error log
-        out("Error binding to socket: " + (std::string)strerror(errno));
+        logStandardError("Error binding to socket");
         exit(EXIT_FAILURE);
     }
 
@@ -136,8 +146,7 @@ int socketBind(addrinfo* hostList) {
 void socketListen(int socketId, int backlog) {
     int status = listen(socketId, backlog);
     if(status == -1) {
-        // TODO: Write to error log
-        out("Error listening to socket: " + (std::string)strerror(errno));
+        logStandardError("Error listening to socket");
         exit(EXIT_FAILURE);
     }
 
@@ -146,8 +155,7 @@ void socketListen(int socketId, int backlog) {
         socklen_t addressSize = sizeof(address);
         int newSocketId = accept(socketId, (struct sockaddr *)&address, &addressSize);
         if(newSocketId == -1) {
-            // TODO: Write to error log
-            out("Error listening to socket: " + (std::string)strerror(errno));
+            logStandardError("Error listening to socket");
             exit(EXIT_FAILURE);
         }
 
@@ -157,8 +165,7 @@ void socketListen(int socketId, int backlog) {
         // process running indefinitely.
         pid_t pid = fork();
         if(pid == -1) {
-            // TODO: Write to error log
-            out("Error forking child process: " + (std::string)strerror(errno));
+            logStandardError("Error forking child process");
             exit(EXIT_FAILURE);
         } else if(pid == 0) {
             close(socketId);
@@ -198,9 +205,10 @@ void handleRequest(int socketId) {
     }
 
     Http_Response *response = (Http_Response*)malloc(sizeof(Http_Response));
+    response->headers = {};
 
     const char* extension = strrchr(resource, '.');
-    // setResponseContentType(extension, response);
+    setResponseContentType(extension, response);
 
     if(loadResource(resource, response)) {
         response200(response);
@@ -208,26 +216,30 @@ void handleRequest(int socketId) {
         response404(response);
     }
 
-    char line[2] = "\n";
-    char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(line) + 1]{};
-    strncpy(outputBuffer, response->headers, strlen(response->headers));
-    strncat(outputBuffer, line, strlen(line));
-    strncat(outputBuffer, response->body, strlen(response->body));
+    // TODO: Make dictionaryToString function for headers and replace response->headers append below.
 
-    send(socketId, outputBuffer, strlen(outputBuffer), 0);
+    // char line[2] = "\n";
+    // char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(line) + 1]{};
+    // strncpy(outputBuffer, response->headers, strlen(response->headers));
+    // strncat(outputBuffer, line, strlen(line));
+    // strncat(outputBuffer, response->body, strlen(response->body));
 
-    free(response->headers);
+    // send(socketId, outputBuffer, strlen(outputBuffer), 0);
+
+    free(response->headers->pages);
     free(response->body);
     free(response);
 }
 
 
 void setResponseContentType(const char* extension, Http_Response* response) {
-    const char* contentTypeHeader;
     response->binary = false;
 
+    Page contentTypeHeader = {};
+    contentTypeHeader.key = "Content-Type";
+
     if(extension == NULL) {
-        contentTypeHeader = "Content-Type: text/html\n";
+        contentTypeHeader.value = "text/html";
     } else {
         // We're removing the period from the start of the extension, but make the new array the same length so
         // the null terminator can be put onto the end.
@@ -241,14 +253,14 @@ void setResponseContentType(const char* extension, Http_Response* response) {
         out(extensionLower);
         if(strcmp(extension, "png") == 0) {
             response->binary = true;
-            contentTypeHeader = "Content-Type: image/png\n";
+            contentTypeHeader.value = "image/png";
         } else if(strcmp(extension, "jpg") == 0) {
             response->binary = true;
-            contentTypeHeader = "Content-Type: image/jpg\n";
+            contentTypeHeader.value = "image/jpg";
         }
     }
 
-
+    dictionaryAddPage(response->headers, contentTypeHeader);
 }
 
 
@@ -321,13 +333,38 @@ Find_Result* getStringBetween(const char* buffer, const char start, const char e
 }
 
 
-void dictionaryAdd(Dictionary* dict, const char* key, const char* value) {
-    dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * (dict->entries) + 1);
+bool dictionaryAddPage(Dictionary* dict, Page page) {
+    if(dictionaryFind(dict, page.key) != NULL) {
+        return false;
+    }
+
+    if(dict->entries == 0) {
+        dict->pages = (Page*)malloc(sizeof(Page));
+    } else {
+        dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+    }
+    int next = dict->entries++;
+    dict->pages[next] = page;
+    return true;
+}
+
+
+bool dictionaryAddKeyValue(Dictionary* dict, const char* key, const char* value) {
+    if(dictionaryFind(dict, key) != NULL) {
+        return false;
+    }
+
+    if(dict->entries == 0) {
+        dict->pages = (Page*)malloc(sizeof(Page));
+    } else {
+        dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+    }
     int next = dict->entries++;
     Page page;
     page.key = key;
     page.value = value;
     dict->pages[next] = page;
+    return true;
 }
 
 
@@ -340,6 +377,21 @@ const char* dictionaryFind(Dictionary* dict, const char* key) {
         }
     }
     return NULL;
+}
+
+
+char* dictionaryToString(Dictionary* dict) {
+    char* result = (char*)malloc(1024 * sizeof(char));
+    int length = 0;
+    for(int i = 0; i < dict->entries; ++i) {
+        if(strlen(dict->pages[i].key) == 0) {
+            length += sprintf(result + length, "%s\n", dict->pages[i].value);
+        } else {
+            length += sprintf(result + length, "%s: %s\n", dict->pages[i].key, dict->pages[i].value);
+        }
+    }
+    result[length] = '\0';
+    return result;
 }
 
 
@@ -365,8 +417,7 @@ bool loadResource(const char* resource, Http_Response* response) {
     strncat(fullPath, resource, 1024 - strlen(fullPath));
     file = fopen(fullPath, "r");
     if(file == NULL) {
-        // TODO: Write to error log
-        out("Error reading resource file: " + (std::string)strerror(errno));
+        logStandardError("Error reading resource file");
         return false;
     }
     fseek(file, 0, SEEK_END);
@@ -376,8 +427,7 @@ bool loadResource(const char* resource, Http_Response* response) {
     fread(response->body, fileLength, 1, file);
     fclose(file);
     if(response->body == NULL) {
-        // TODO: Write to error log
-        out("Error reading resource file: " + (std::string)strerror(errno));
+        logStandardError("Error reading resource file");
         return false;
     }
     return true;
@@ -385,17 +435,11 @@ bool loadResource(const char* resource, Http_Response* response) {
 
 
 void response200(Http_Response* response) {
-    char contentLengthHeader[40]{};
-    snprintf(contentLengthHeader, 40, "Content-Length: %d\n", (int)strlen(response->body));
-
-    const char* headers = "\
-HTTP/1.1 200 OK\n\
-Content-Type: text/html\n";
-    size_t length = strlen(headers) + strlen(contentLengthHeader);
-    response->headers = (char*)malloc((length + 1) * sizeof(char));
-    strncpy(response->headers, headers, length);
-    strncat(response->headers, contentLengthHeader, strlen(contentLengthHeader));
-    response->headers[length] = '\0';
+    dictionaryAddKeyValue(response->headers, "", "HTTP/1.1 200 OK");
+    dictionaryAddKeyValue(response->headers, "Content-Type", "text/html");
+    char* length;
+    sprintf(length, "%d", (int)strlen(response->body));
+    dictionaryAddKeyValue(response->headers, "Content-Length", length);
 }
 
 
@@ -413,17 +457,11 @@ void response404(Http_Response* response) {
     strncpy(response->body, body, bodyLength);
     response->body[bodyLength] = '\0';
 
-    char contentLengthHeader[40]{};
-    snprintf(contentLengthHeader, 40, "Content-Length: %d\n", (int)strlen(response->body));
-
-    const char* headers = "\
-HTTP/1.1 404 Not Found\n\
-Content-Type: text/html\n";
-    size_t headerLength = strlen(headers) + strlen(contentLengthHeader);
-    response->headers = (char*)malloc((headerLength + 1) * sizeof(char));
-    strncpy(response->headers, headers, headerLength);
-    strncat(response->headers, contentLengthHeader, strlen(contentLengthHeader));
-    response->headers[headerLength] = '\0';
+    dictionaryAddKeyValue(response->headers, "", "HTTP/1.1 404 Not Found");
+    dictionaryAddKeyValue(response->headers, "Content-Type", "text/html");
+    char* length;
+    sprintf(length, "%d", (int)strlen(response->body));
+    dictionaryAddKeyValue(response->headers, "Content-Length", length);
 
     response->binary = 0;
 }

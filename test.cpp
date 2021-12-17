@@ -112,21 +112,79 @@ void runTests() {
         free(dict.pages);
     }
 
-    TEST("dictionaryAdd") {
+    TEST("dictionaryAddKeyValue") {
         Dictionary dict = {};
         const char* key0 = "key0";
         const char* value0 = "value0";
-        dictionaryAdd(&dict, key0, value0);
+        bool result = dictionaryAddKeyValue(&dict, key0, value0);
+        ASSERT_TRUE(result, "Result should be true");
         ASSERT_TRUE(dict.entries == 1, "Dictionary should have 1 entry");
         ASSERT_TRUE(strncmp(dict.pages[0].key, key0, strlen(key0)) == 0, "First key should be expected value");
         ASSERT_TRUE(strncmp(dict.pages[0].value, value0, strlen(value0)) == 0, "First value should be expected value");
 
         const char* key1 = "key1";
         const char* value1 = "value1";
-        dictionaryAdd(&dict, key1, value1);
+        bool result2 = dictionaryAddKeyValue(&dict, key1, value1);
+        ASSERT_TRUE(result2, "Result should be true");
         ASSERT_TRUE(dict.entries == 2, "Dictionary should have 2 entries");
         ASSERT_TRUE(strncmp(dict.pages[1].key, key1, strlen(key1)) == 0, "Second key should be expected value");
         ASSERT_TRUE(strncmp(dict.pages[1].value, value1, strlen(value1)) == 0, "Second value should be expected value");
+
+        const char* key2 = key0;
+        bool result3 = dictionaryAddKeyValue(&dict, key2, "");
+        ASSERT_FALSE(result3, "Result should be false trying to add existing key");
+        ASSERT_TRUE(dict.entries == 2, "Dictionary should have 2 entries");
+        free(dict.pages);
+    }
+
+    TEST("dictionaryAddPage") {
+        Dictionary dict = {};
+        Page page = {};
+        page.key = "key";
+        page.value = "value";
+        bool result = dictionaryAddPage(&dict, page);
+        ASSERT_TRUE(result, "Result should be true");
+        ASSERT_TRUE(dict.entries == 1, "Dictionary should have 1 entry");
+        ASSERT_TRUE(strncmp(dict.pages[0].key, page.key, strlen(page.key)) == 0, "Key should be expected value");
+        ASSERT_TRUE(strncmp(dict.pages[0].value, page.value, strlen(page.value)) == 0, "Value should be expected value");
+
+        Page page2 = {};
+        page2.key = "key2";
+        page2.value = "value2";
+        bool result2 = dictionaryAddPage(&dict, page2);
+        ASSERT_TRUE(result2, "Result should be true");
+        ASSERT_TRUE(dict.entries == 2, "Dictionary should have 2 entries");
+        ASSERT_TRUE(strncmp(dict.pages[1].key, page2.key, strlen(page2.key)) == 0, "Second key should be expected value");
+        ASSERT_TRUE(strncmp(dict.pages[1].value, page2.value, strlen(page2.value)) == 0, "Second value should be expected value");
+
+        Page page3 = {};
+        page3.key = page.key;
+        page3.value = "";
+        bool result3 = dictionaryAddPage(&dict, page3);
+        ASSERT_FALSE(result3, "Result should be false trying to add existing key");
+        ASSERT_TRUE(dict.entries == 2, "Dictionary should have 2 entries");
+        free(dict.pages);
+    }
+
+    TEST("dictionaryToString") {
+        Dictionary dict = {};
+        Page page = {};
+        page.key = "key";
+        page.value = "value";
+        dictionaryAddPage(&dict, page);
+        char* headers = dictionaryToString(&dict);
+        ASSERT_TRUE(strncmp(headers, "key: value\n", sizeof(headers)) == 0, "String should match expected key:value string");
+        free(headers);
+
+        // Test value without key
+        Page page2 = {};
+        page2.key = "";
+        page2.value = "value2";
+        dictionaryAddPage(&dict, page2);
+        char* headers2 = dictionaryToString(&dict);
+        ASSERT_TRUE(strncmp(headers2, "key: value\nvalue2\n", strlen(headers2)) == 0, "String should match expected value string");
+        free(headers);
+        free(dict.pages);
     }
 
     printf(
