@@ -1,1 +1,1 @@
-g++ server.cpp -g -Werror -D INTERNAL -D TESTONLY -o server
+g++ server.cpp -g -Werror -D INTERNAL -o server

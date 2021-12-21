@@ -176,13 +176,13 @@ void runTests() {
         ASSERT_TRUE(strncmp(headers, "key: value\n", sizeof(headers)) == 0, "String should match expected key:value string");
         free(headers);
 
-        // Test value without key
+        // Test key without value
         Page page2 = {};
-        page2.key = "";
-        page2.value = "value2";
+        page2.key = "key2";
+        page2.value = "";
         dictionaryAddPage(&dict, page2);
         char* headers2 = dictionaryToString(&dict);
-        ASSERT_TRUE(strncmp(headers2, "key: value\nvalue2\n", strlen(headers2)) == 0, "String should match expected value string");
+        ASSERT_TRUE(strncmp(headers2, "key: value\nkey2\n", strlen(headers2)) == 0, "String should match expected value string");
         free(headers);
         free(dict.pages);
     }

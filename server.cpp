@@ -43,6 +43,9 @@
 #endif
 
 
+const int genericBufferSize = 1024;
+
+
 int main(int argc, char** argv) {
     #if INTERNAL
         runTests();
@@ -57,7 +60,7 @@ int main(int argc, char** argv) {
     out("---------------------------------------------------");
     out("- GETsrv | Because Even Useless Things Have Names -");
     out("---------------------------------------------------\n");
-    char* portString;
+    char portString[28] = "";
     sprintf(portString, "Starting server at port %d", port);
     out(portString);
 
@@ -77,8 +80,8 @@ void out(const char* message) {
 
 void logStandardError(const char* message) {
     // TODO: Write to error log
-    char* error;
-    sprintf(error, "%message: %s", strerror(errno));
+    char error[genericBufferSize] = "";
+    sprintf(error, "Error: %s", strerror(errno));
     out(error);
 }
 
@@ -101,13 +104,13 @@ void getAddressInfo(int port, addrinfo** hostList) {
     // This field specifies the preferred socket type
     hints.ai_socktype = SOCK_STREAM;
 
-    char* portString;
+    char portString[4] = "";
     sprintf(portString, "%d", port);
     int status = getaddrinfo(NULL, portString, &hints, hostList);
 
     if(status != 0) {
         // TODO: Write to error log
-        char* error;
+        char error[genericBufferSize] = "";
         sprintf(error, "getaddrinfo error: %s", gai_strerror(status));
         out(error);
         exit(EXIT_FAILURE);
@@ -180,7 +183,7 @@ void socketListen(int socketId, int backlog) {
 
 void handleRequest(int socketId) {
     size_t bufferSize = 1024 * 8;
-    char buffer[bufferSize];
+    char buffer[bufferSize] = "";
     recv(socketId, &buffer, bufferSize, 0);
     
     // TODO: Write buffer to request log
@@ -203,63 +206,86 @@ void handleRequest(int socketId) {
         resource = "index.htm";
     }
 
-    Http_Response *response = (Http_Response*)malloc(sizeof(Http_Response));
-    response->headers = {};
+    Http_Response response;
+    response.headers = {};
 
     const char* extension = strrchr(resource, '.');
-    setResponseContentType(extension, response);
+    setResponseContentType(extension, &response);
 
-    if(loadResource(resource, response)) {
-        response200(response);
+    if(loadResource(resource, &response)) {
+        response200(&response);
     } else {
-        response404(response);
+        response404(&response);
     }
 
-    // TODO: Make dictionaryToString function for headers and replace response->headers append below.
+    char http[30] = "";
+    sprintf(http, "HTTP/1.1 %d %s\n", response.code, httpCodeToText(response.code));
 
-    // char line[2] = "\n";
-    // char outputBuffer[strlen(response->headers) + strlen(response->body) + strlen(line) + 1]{};
-    // strncpy(outputBuffer, response->headers, strlen(response->headers));
-    // strncat(outputBuffer, line, strlen(line));
-    // strncat(outputBuffer, response->body, strlen(response->body));
+    char contentLength[10] = "";
+    sprintf(contentLength, "%d", (int)strlen(response.body));
+    dictionaryAddKeyValue(&response.headers, "Content-Length", contentLength);
 
-    // send(socketId, outputBuffer, strlen(outputBuffer), 0);
+    char line[2] = "\n";
+    char* headerString = dictionaryToString(&response.headers);
+    
+    int bufferLength = strlen(http) + strlen(headerString) + strlen(response.body) + strlen(line);
+    char outputBuffer[bufferLength + 1] = "";
+    strncat(outputBuffer, http, strlen(http));
+    strncat(outputBuffer, headerString, strlen(headerString));
+    strncat(outputBuffer, line, strlen(line));
+    strncat(outputBuffer, response.body, strlen(response.body));
+    outputBuffer[bufferLength] = '\0';
 
-    free(response->headers->pages);
-    free(response->body);
-    free(response);
+    send(socketId, outputBuffer, strlen(outputBuffer), 0);
+
+    free(response.headers.pages);
+    free(response.body); 
+}
+
+
+const char* httpCodeToText(int code) {
+    switch(code) {
+        case 200: {
+            return "OK";
+        } break;
+        case 404: {
+            return "Not Found";
+        } break;
+    }
+    return "";
 }
 
 
 void setResponseContentType(const char* extension, Http_Response* response) {
     response->binary = false;
 
-    Page contentTypeHeader = {};
-    contentTypeHeader.key = "Content-Type";
+    Page type = {};
+    type.key = "Content-Type";
 
     if(extension == NULL) {
-        contentTypeHeader.value = "text/html";
+        type.value = "text/html";
     } else {
         // We're removing the period from the start of the extension, but make the new array the same length so
         // the null terminator can be put onto the end.
-        char extensionLower[strlen(extension)];
+        char extensionLower[strlen(extension)] = "";
         // Start at 1 so we can remove the period.
         for(int i = 1; extension[i]; ++i) {
             // Minus 1 to put the character at the right index in the new array.
             extensionLower[i - 1] = tolower(extension[i]);
         }
         extensionLower[strlen(extension) - 1] = '\0';
-        out(extensionLower);
-        if(strcmp(extension, "png") == 0) {
+        if(strcmp(extensionLower, "png") == 0) {
             response->binary = true;
-            contentTypeHeader.value = "image/png";
-        } else if(strcmp(extension, "jpg") == 0) {
+            type.value = "image/png";
+        } else if(strcmp(extensionLower, "jpg") == 0) {
             response->binary = true;
-            contentTypeHeader.value = "image/jpg";
+            type.value = "image/jpg";
+        } else if(strcmp(extensionLower, "htm") == 0) {
+            type.value = "text/html";
         }
     }
 
-    dictionaryAddPage(response->headers, contentTypeHeader);
+    dictionaryAddPage(&response->headers, type);
 }
 
 
@@ -340,7 +366,12 @@ bool dictionaryAddPage(Dictionary* dict, Page page) {
     if(dict->entries == 0) {
         dict->pages = (Page*)malloc(sizeof(Page));
     } else {
-        dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+        Page* allocation = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+        if(allocation != NULL) {
+            dict->pages = allocation;
+        } else {
+            return false;
+        }
     }
     int next = dict->entries++;
     dict->pages[next] = page;
@@ -356,7 +387,12 @@ bool dictionaryAddKeyValue(Dictionary* dict, const char* key, const char* value)
     if(dict->entries == 0) {
         dict->pages = (Page*)malloc(sizeof(Page));
     } else {
-        dict->pages = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+        Page* allocation = (Page*)realloc(dict->pages, sizeof(Page) * ((dict->entries) + 1));
+        if(allocation != NULL) {
+            dict->pages = allocation;
+        } else {
+            return false;
+        }
     }
     int next = dict->entries++;
     Page page;
@@ -382,9 +418,10 @@ const char* dictionaryFind(Dictionary* dict, const char* key) {
 char* dictionaryToString(Dictionary* dict) {
     char* result = (char*)malloc(1024 * sizeof(char));
     int length = 0;
+    // Start from end so we output in the order things were entered
     for(int i = 0; i < dict->entries; ++i) {
-        if(strlen(dict->pages[i].key) == 0) {
-            length += sprintf(result + length, "%s\n", dict->pages[i].value);
+        if(strlen(dict->pages[i].value) == 0) {
+            length += sprintf(result + length, "%s\n", dict->pages[i].key);
         } else {
             length += sprintf(result + length, "%s: %s\n", dict->pages[i].key, dict->pages[i].value);
         }
@@ -412,8 +449,8 @@ const char* getResourceFromRequest(const char* buffer) {
 
 bool loadResource(const char* resource, Http_Response* response) {
     FILE *file;
-    char fullPath[1024] = "./content/";
-    strncat(fullPath, resource, 1024 - strlen(fullPath));
+    char fullPath[genericBufferSize] = "./content/";
+    strncat(fullPath, resource, genericBufferSize - strlen(fullPath));
     file = fopen(fullPath, "r");
     if(file == NULL) {
         logStandardError("Error reading resource file");
@@ -429,20 +466,19 @@ bool loadResource(const char* resource, Http_Response* response) {
         logStandardError("Error reading resource file");
         return false;
     }
+    response->body[fileLength] = '\0';
     return true;
 }
 
 
 void response200(Http_Response* response) {
-    dictionaryAddKeyValue(response->headers, "", "HTTP/1.1 200 OK");
-    dictionaryAddKeyValue(response->headers, "Content-Type", "text/html");
-    char* length;
-    sprintf(length, "%d", (int)strlen(response->body));
-    dictionaryAddKeyValue(response->headers, "Content-Length", length);
+    response->code = 200;
+    dictionaryAddKeyValue(&response->headers, "Content-Type", "text/html");
 }
 
 
 void response404(Http_Response* response) {
+    response->code = 404;
     const char* body = "\
 <!doctype html>\
 <html>\
@@ -456,11 +492,7 @@ void response404(Http_Response* response) {
     strncpy(response->body, body, bodyLength);
     response->body[bodyLength] = '\0';
 
-    dictionaryAddKeyValue(response->headers, "", "HTTP/1.1 404 Not Found");
-    dictionaryAddKeyValue(response->headers, "Content-Type", "text/html");
-    char* length;
-    sprintf(length, "%d", (int)strlen(response->body));
-    dictionaryAddKeyValue(response->headers, "Content-Length", length);
+    dictionaryAddKeyValue(&response->headers, "Content-Type", "text/html");
 
     response->binary = 0;
 }

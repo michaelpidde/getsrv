@@ -18,7 +18,8 @@ struct Dictionary {
 };
 
 struct Http_Response {
-    Dictionary* headers;
+    Dictionary headers;
+    int code;
     char* body;
     bool binary;
 };
@@ -41,5 +42,6 @@ const char* dictionaryFind(Dictionary* dict, const char* key);
 char* dictionaryToString(Dictionary* dict);
 bool loadResource(const char* resource, Http_Response* response);
 void setResponseContentType(const char* extension, Http_Response* response);
+const char* httpCodeToText(int code);
 void response200(Http_Response* response);
 void response404(Http_Response* response);
