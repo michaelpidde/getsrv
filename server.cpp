@@ -1,7 +1,7 @@
 /*******************************************************************************
- * 
+ *
  * Note to future code explorers:
- * 
+ *
  * This code is probably junk. I'm well aware that I mix null-terminated C
  * strings with probably unterminated C strings (does the recv buffer get
  * null terminated? I don't know.) and C++ standard lib strings. Some of that is
@@ -24,7 +24,7 @@
  * from it. The entire idea of this project is to be closer to the machine in a
  * sort of way by utilizing a unikernel to run this process. In that sense, it's
  * a clear choice to select C or C++ as the language for this endeavor.
- * 
+ *
  ******************************************************************************/
 
 #include <cerrno>
@@ -81,7 +81,7 @@ void out(const char* message) {
 void logStandardError(const char* message) {
     // TODO: Write to error log
     char error[genericBufferSize] = "";
-    sprintf(error, "Error: %s", strerror(errno));
+    sprintf(error, "%s: %s", message, strerror(errno));
     out(error);
 }
 
@@ -93,7 +93,7 @@ void getAddressInfo(int port, addrinfo** hostList) {
     // https://man7.org/linux/man-pages/man3/getaddrinfo.3.html
     //
 
-    // The value AF_UNSPEC indicates that getaddrinfo() should return socket addresses for any address family (either 
+    // The value AF_UNSPEC indicates that getaddrinfo() should return socket addresses for any address family (either
     // IPv4 or IPv6, for example) that can be used with node and service.
     hints.ai_family = AF_UNSPEC;
     // If the AI_PASSIVE flag is specified in hints.ai_flags, and node is NULL, then the returned socket addresses will
@@ -129,13 +129,18 @@ int socketBind(addrinfo* hostList) {
             logStandardError("Socket error");
             continue;
         }
+        int enable = 1;
+        if (setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+            logStandardError("setsockopt(SO_REUSEADDR) error");
+            break;
+        }
         if(bind(socketId, addr->ai_addr, addr->ai_addrlen) == 0) {
             break;
         }
         close(socketId);
     }
     freeaddrinfo(hostList);
-    
+
     if(addr == NULL) {
         logStandardError("Error binding to socket");
         exit(EXIT_FAILURE);
@@ -185,7 +190,7 @@ void handleRequest(int socketId) {
     size_t bufferSize = 1024 * 8;
     char buffer[bufferSize] = "";
     recv(socketId, &buffer, bufferSize, 0);
-    
+
     // TODO: Write buffer to request log
     // out(buffer);
 
@@ -212,9 +217,7 @@ void handleRequest(int socketId) {
     const char* extension = strrchr(resource, '.');
     setResponseContentType(extension, &response);
 
-    if(loadResource(resource, &response)) {
-        response200(&response);
-    } else {
+    if(!loadResource(resource, &response)) {
         response404(&response);
     }
 
@@ -227,8 +230,8 @@ void handleRequest(int socketId) {
 
     char line[2] = "\n";
     char* headerString = dictionaryToString(&response.headers);
-    
-    int bufferLength = strlen(http) + strlen(headerString) + strlen(response.body) + strlen(line);
+
+    size_t bufferLength = strlen(http) + strlen(headerString) + strlen(response.body) + strlen(line);
     char outputBuffer[bufferLength + 1] = "";
     strncat(outputBuffer, http, strlen(http));
     strncat(outputBuffer, headerString, strlen(headerString));
@@ -239,7 +242,7 @@ void handleRequest(int socketId) {
     send(socketId, outputBuffer, strlen(outputBuffer), 0);
 
     free(response.headers.pages);
-    free(response.body); 
+    free(response.body);
 }
 
 
@@ -261,6 +264,7 @@ void setResponseContentType(const char* extension, Http_Response* response) {
 
     Page type = {};
     type.key = "Content-Type";
+    int insert = 1;
 
     if(extension == NULL) {
         type.value = "text/html";
@@ -282,10 +286,16 @@ void setResponseContentType(const char* extension, Http_Response* response) {
             type.value = "image/jpg";
         } else if(strcmp(extensionLower, "htm") == 0) {
             type.value = "text/html";
+        } else if(strcmp(extensionLower, "css") == 0) {
+            type.value = "text/css";
+        } else {
+            insert = 0;
         }
     }
 
-    dictionaryAddPage(&response->headers, type);
+    if(insert) {
+        dictionaryAddPage(&response->headers, type);
+    }
 }
 
 
@@ -339,7 +349,7 @@ Find_Result* getStringBetween(const char* buffer, const char start, const char e
     if(index1 == NULL) {
         return negativeFindResult();
     }
-    
+
     const char* index2 = strchr(index1, end);
     if(index2 == NULL) {
         return negativeFindResult();
@@ -420,11 +430,7 @@ char* dictionaryToString(Dictionary* dict) {
     int length = 0;
     // Start from end so we output in the order things were entered
     for(int i = 0; i < dict->entries; ++i) {
-        if(strlen(dict->pages[i].value) == 0) {
-            length += sprintf(result + length, "%s\n", dict->pages[i].key);
-        } else {
-            length += sprintf(result + length, "%s: %s\n", dict->pages[i].key, dict->pages[i].value);
-        }
+        length += sprintf(result + length, "%s: %s\n", dict->pages[i].key, dict->pages[i].value);
     }
     result[length] = '\0';
     return result;
@@ -453,7 +459,9 @@ bool loadResource(const char* resource, Http_Response* response) {
     strncat(fullPath, resource, genericBufferSize - strlen(fullPath));
     file = fopen(fullPath, "r");
     if(file == NULL) {
-        logStandardError("Error reading resource file");
+        char message[50];
+        sprintf(message, "Error reading resource file \"%s\"", resource);
+        logStandardError(message);
         return false;
     }
     fseek(file, 0, SEEK_END);
@@ -463,17 +471,14 @@ bool loadResource(const char* resource, Http_Response* response) {
     fread(response->body, fileLength, 1, file);
     fclose(file);
     if(response->body == NULL) {
-        logStandardError("Error reading resource file");
+        char message[50];
+        sprintf(message, "Error reading resource file \"%s\"", resource);
+        logStandardError(message);
         return false;
     }
     response->body[fileLength] = '\0';
-    return true;
-}
-
-
-void response200(Http_Response* response) {
     response->code = 200;
-    dictionaryAddKeyValue(&response->headers, "Content-Type", "text/html");
+    return true;
 }
 
 
